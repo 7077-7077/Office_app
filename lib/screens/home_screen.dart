@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:office_app/models/asset_model.dart';
+import 'package:office_app/screens/asset_detail_screen.dart';
 import 'package:office_app/screens/asset_form_screen.dart';
-import 'package:office_app/theme.dart';
-import 'package:office_app/widgets/custom_widgets.dart';
 import 'package:office_app/services/excel_service.dart';
 import 'package:office_app/services/firestore_service.dart';
+import 'package:office_app/theme.dart';
+import 'package:office_app/widgets/animated_widgets.dart';
+import 'package:office_app/widgets/custom_widgets.dart';
 
 class HomeScreen extends StatefulWidget {
   final VoidCallback? onViewAll;
@@ -28,7 +30,7 @@ class _HomeScreenState extends State<HomeScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
-              content: Text('Successfully imported $count records to Firestore!'),
+              content: Text('Successfully imported $count records!'),
               backgroundColor: Colors.green,
               behavior: SnackBarBehavior.floating,
             ),
@@ -145,14 +147,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                                 PieChartSectionData(
                                                   color: Colors.green,
                                                   value: purchasedAssets.toDouble(),
-                                                  title: '${((purchasedAssets / totalAssets) * 100).toStringAsFixed(0)}%',
+                                                  title: totalAssets > 0 ? '${((purchasedAssets / totalAssets) * 100).toStringAsFixed(0)}%' : '0%',
                                                   radius: _touchedIndex == 0 ? 60 : 50,
                                                   titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
                                                 ),
                                                 PieChartSectionData(
                                                   color: Colors.orange,
                                                   value: rentAssets.toDouble(),
-                                                  title: '${((rentAssets / totalAssets) * 100).toStringAsFixed(0)}%',
+                                                  title: totalAssets > 0 ? '${((rentAssets / totalAssets) * 100).toStringAsFixed(0)}%' : '0%',
                                                   radius: _touchedIndex == 1 ? 60 : 50,
                                                   titleStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
                                                 ),
@@ -179,20 +181,20 @@ class _HomeScreenState extends State<HomeScreen> {
                           ),
                         ),
 
-                      // Quick Stats Row
+                      // Quick Stats Row with Animated Counter
                       Row(
                         children: [
-                          _StatCard(title: 'Total', value: '$totalAssets', icon: Icons.inventory_2_rounded, color: AppTheme.primaryColor),
+                          _StatCard(title: 'Total', value: totalAssets, icon: Icons.inventory_2_rounded, color: AppTheme.primaryColor),
                           const SizedBox(width: 12),
-                          _StatCard(title: 'Purchased', value: '$purchasedAssets', icon: Icons.shopping_bag_rounded, color: Colors.green),
+                          _StatCard(title: 'Purchased', value: purchasedAssets, icon: Icons.shopping_bag_rounded, color: Colors.green),
                           const SizedBox(width: 12),
-                          _StatCard(title: 'Rent', value: '$rentAssets', icon: Icons.access_time_filled_rounded, color: Colors.orange),
+                          _StatCard(title: 'Rent', value: rentAssets, icon: Icons.access_time_filled_rounded, color: Colors.orange),
                         ],
                       ),
                       const SizedBox(height: 32),
 
                       // Add New Employee Premium Card
-                      GestureDetector(
+                      ScaleOnPress(
                         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AssetFormScreen())),
                         child: Container(
                           width: double.infinity,
@@ -232,7 +234,7 @@ class _HomeScreenState extends State<HomeScreen> {
                                       style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
                                     ),
                                     Text(
-                                      'Create individual asset records',
+                                      'Create & pre-fill asset records',
                                       style: TextStyle(color: Colors.white70, fontSize: 13),
                                     ),
                                   ],
@@ -247,7 +249,7 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 16),
 
                       // Bulk Import Excel Card
-                      GestureDetector(
+                      ScaleOnPress(
                         onTap: _isImporting ? null : _importExcel,
                         child: Container(
                           width: double.infinity,
@@ -304,11 +306,19 @@ class _HomeScreenState extends State<HomeScreen> {
                       const SizedBox(height: 16),
                       
                       if (snapshot.connectionState == ConnectionState.waiting)
-                        const Center(child: CircularProgressIndicator())
+                        Column(
+                          children: List.generate(3, (i) => const Padding(
+                            padding: EdgeInsets.only(bottom: 12),
+                            child: ShimmerSkeleton(height: 72, borderRadius: 20),
+                          )),
+                        )
                       else if (recentRecords.isEmpty)
                         Center(child: Text('No employees found', style: TextStyle(color: theme.textTheme.bodySmall?.color)))
                       else
-                        ...recentRecords.map((r) => _RecentEmployeeCard(record: r, onTap: widget.onViewAll)),
+                        ...recentRecords.asMap().entries.map((entry) => StaggeredListAnimation(
+                              index: entry.key,
+                              child: _RecentEmployeeCard(record: entry.value),
+                            )),
                       const SizedBox(height: 20),
                     ],
                   ),
@@ -331,15 +341,17 @@ class _ChartLegend extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final textColor = theme.textTheme.bodyMedium?.color ?? Colors.black87;
-
     return Row(
       children: [
-        Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        Container(
+          width: 12,
+          height: 12,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
         const SizedBox(width: 8),
-        Text(label, style: TextStyle(color: textColor.withValues(alpha: 0.6), fontSize: 12)),
+        Text(label, style: TextStyle(color: theme.textTheme.bodySmall?.color, fontSize: 14)),
         const SizedBox(width: 8),
-        Text(value, style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 12)),
+        Text(value, style: TextStyle(color: theme.textTheme.titleLarge?.color, fontWeight: FontWeight.bold, fontSize: 14)),
       ],
     );
   }
@@ -347,17 +359,20 @@ class _ChartLegend extends StatelessWidget {
 
 class _StatCard extends StatelessWidget {
   final String title;
-  final String value;
+  final int value;
   final IconData icon;
   final Color color;
 
-  const _StatCard({required this.title, required this.value, required this.icon, required this.color});
+  const _StatCard({
+    required this.title,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final textColor = theme.textTheme.displayLarge?.color ?? Colors.black87;
-
     return Expanded(
       child: GlassCard(
         child: Padding(
@@ -365,10 +380,24 @@ class _StatCard extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(icon, size: 20, color: color),
+              Icon(icon, color: color, size: 24),
               const SizedBox(height: 12),
-              Text(value, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor)),
-              Text(title, style: TextStyle(color: textColor.withValues(alpha: 0.4), fontSize: 11)),
+              AnimatedCounter(
+                value: value,
+                style: TextStyle(
+                  color: theme.textTheme.displayLarge?.color,
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                title,
+                style: TextStyle(
+                  color: theme.textTheme.bodySmall?.color,
+                  fontSize: 12,
+                ),
+              ),
             ],
           ),
         ),
@@ -379,27 +408,60 @@ class _StatCard extends StatelessWidget {
 
 class _RecentEmployeeCard extends StatelessWidget {
   final AssetRecord record;
-  final VoidCallback? onTap;
-  const _RecentEmployeeCard({required this.record, this.onTap});
+  const _RecentEmployeeCard({required this.record});
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final textColor = theme.textTheme.titleLarge?.color ?? Colors.black87;
+    final isRent = record.assetStatus.toLowerCase() == 'rent';
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 12),
-      child: GlassCard(
-        child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          leading: CircleAvatar(
-            backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
-            child: Text(record.employeeName[0], style: const TextStyle(color: AppTheme.primaryColor, fontWeight: FontWeight.bold)),
+      padding: const EdgeInsets.only(bottom: 12.0),
+      child: ScaleOnPress(
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AssetDetailScreen(record: record))),
+        child: GlassCard(
+          child: ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            leading: Hero(
+              tag: 'avatar-${record.id}',
+              child: CircleAvatar(
+                backgroundColor: AppTheme.primaryColor.withValues(alpha: 0.1),
+                child: const Icon(Icons.person, color: AppTheme.primaryColor),
+              ),
+            ),
+            title: Hero(
+              tag: 'name-${record.id}',
+              child: Material(
+                color: Colors.transparent,
+                child: Text(
+                  record.employeeName,
+                  style: TextStyle(
+                    color: theme.textTheme.titleLarge?.color,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ),
+            subtitle: Text(
+              '${record.laptopBrand} ${record.laptopModelNo}',
+              style: TextStyle(color: theme.textTheme.bodySmall?.color),
+            ),
+            trailing: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: (isRent ? Colors.orange : Colors.green).withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                record.assetStatus.toUpperCase(),
+                style: TextStyle(
+                  color: isRent ? Colors.orange : Colors.green,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 10,
+                ),
+              ),
+            ),
           ),
-          title: Text(record.employeeName, style: TextStyle(color: textColor, fontWeight: FontWeight.bold)),
-          subtitle: Text('ID: ${record.companyId} • ${record.laptopBrand}', style: TextStyle(color: textColor.withValues(alpha: 0.5), fontSize: 12)),
-          trailing: Icon(Icons.chevron_right_rounded, color: textColor.withValues(alpha: 0.2)),
-          onTap: onTap,
         ),
       ),
     );

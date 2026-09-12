@@ -6,6 +6,7 @@ import 'package:office_app/widgets/custom_widgets.dart';
 import 'package:office_app/screens/asset_detail_screen.dart';
 import 'package:office_app/services/excel_service.dart';
 import 'package:office_app/services/firestore_service.dart';
+import 'package:office_app/widgets/animated_widgets.dart';
 
 class AssetListScreen extends StatefulWidget {
   const AssetListScreen({super.key});
@@ -302,7 +303,14 @@ class _AssetListScreenState extends State<AssetListScreen> {
                       stream: FirestoreService.getAssets(),
                       builder: (context, snapshot) {
                         if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
+                          return ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 24),
+                            itemCount: 4,
+                            itemBuilder: (context, index) => const Padding(
+                              padding: EdgeInsets.only(bottom: 12),
+                              child: ShimmerSkeleton(height: 90, borderRadius: 20),
+                            ),
+                          );
                         }
                         if (snapshot.hasError) {
                           return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(color: Colors.redAccent)));
@@ -350,18 +358,21 @@ class _AssetListScreenState extends State<AssetListScreen> {
                           itemBuilder: (context, index) {
                             final record = filteredAssets[index];
                             final id = record.id ?? '';
-                            return _AssetExpandableCard(
-                              record: record,
-                              isSelected: _selectedIds.contains(id),
-                              onSelect: () {
-                                setState(() {
-                                  if (_selectedIds.contains(id)) {
-                                    _selectedIds.remove(id);
-                                  } else {
-                                    _selectedIds.add(id);
-                                  }
-                                });
-                              },
+                            return StaggeredListAnimation(
+                              index: index,
+                              child: _AssetExpandableCard(
+                                record: record,
+                                isSelected: _selectedIds.contains(id),
+                                onSelect: () {
+                                  setState(() {
+                                    if (_selectedIds.contains(id)) {
+                                      _selectedIds.remove(id);
+                                    } else {
+                                      _selectedIds.add(id);
+                                    }
+                                  });
+                                },
+                              ),
                             );
                           },
                         );

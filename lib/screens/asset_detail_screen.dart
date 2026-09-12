@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:office_app/models/asset_model.dart';
 import 'package:office_app/screens/asset_form_screen.dart';
+import 'package:office_app/services/pdf_service.dart';
 import 'package:office_app/theme.dart';
+import 'package:office_app/widgets/animated_widgets.dart';
 import 'package:office_app/widgets/custom_widgets.dart';
 
 class AssetDetailScreen extends StatelessWidget {
@@ -18,6 +20,40 @@ class AssetDetailScreen extends StatelessWidget {
         behavior: SnackBarBehavior.floating,
       ),
     );
+  }
+
+  Future<void> _generatePdf(BuildContext context) async {
+    try {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Row(
+            children: [
+              SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+              ),
+              SizedBox(width: 12),
+              Text('Generating PDF Document...'),
+            ],
+          ),
+          backgroundColor: AppTheme.primaryColor,
+          behavior: SnackBarBehavior.floating,
+          duration: Duration(seconds: 2),
+        ),
+      );
+      await PdfService.generateAndDownloadPdf(record);
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Failed to generate PDF: $e'),
+            backgroundColor: Colors.redAccent,
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -88,6 +124,11 @@ class AssetDetailScreen extends StatelessWidget {
                 ),
                 actions: [
                   IconButton(
+                    icon: const Icon(Icons.picture_as_pdf_rounded, color: AppTheme.primaryColor),
+                    tooltip: 'Generate PDF',
+                    onPressed: () => _generatePdf(context),
+                  ),
+                  IconButton(
                     icon: Icon(Icons.edit_note_rounded, color: textColor),
                     onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AssetFormScreen(record: r))),
                   ),
@@ -130,9 +171,47 @@ class AssetDetailScreen extends StatelessWidget {
                           _DetailStatusBadge(label: r.assetStatus, color: isRent ? Colors.orange : Colors.green),
                         ],
                       ),
-                      const SizedBox(height: 32),
+                      const SizedBox(height: 24),
 
-                      // Actions Row
+                      // Prominent PDF Generation Banner Button
+                      ScaleOnPress(
+                        onTap: () => _generatePdf(context),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+                          decoration: BoxDecoration(
+                            gradient: const LinearGradient(
+                              colors: [AppTheme.primaryColor, AppTheme.secondaryColor],
+                            ),
+                            borderRadius: BorderRadius.circular(18),
+                            boxShadow: [
+                              BoxShadow(
+                                color: AppTheme.primaryColor.withValues(alpha: 0.3),
+                                blurRadius: 15,
+                                offset: const Offset(0, 8),
+                              ),
+                            ],
+                          ),
+                          child: const Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(Icons.picture_as_pdf_rounded, color: Colors.white, size: 22),
+                              SizedBox(width: 10),
+                              Text(
+                                'Generate & Print PDF Report',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+
+                      // Quick Actions Row
                       Row(
                         children: [
                           Expanded(
@@ -145,9 +224,17 @@ class AssetDetailScreen extends StatelessWidget {
                           const SizedBox(width: 12),
                           Expanded(
                             child: _ActionTile(
-                              icon: Icons.share_rounded,
-                              label: 'Share Info',
-                              onTap: () {}, // TODO: Implement sharing
+                              icon: Icons.picture_as_pdf_outlined,
+                              label: 'Save PDF',
+                              onTap: () => _generatePdf(context),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _ActionTile(
+                              icon: Icons.edit_outlined,
+                              label: 'Edit Details',
+                              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => AssetFormScreen(record: r))),
                             ),
                           ),
                         ],
@@ -206,29 +293,28 @@ class AssetDetailScreen extends StatelessWidget {
 
 class _DetailSection extends StatelessWidget {
   final String title;
-  final List<Widget> items;
+  final List<_DetailItem> items;
+
   const _DetailSection({required this.title, required this.items});
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final textColor = theme.textTheme.displayLarge?.color ?? Colors.black87;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.only(left: 4, bottom: 12),
           child: Text(
-            title.toUpperCase(),
-            style: const TextStyle(
-              color: AppTheme.primaryColor,
-              fontWeight: FontWeight.bold,
-              fontSize: 12,
-              letterSpacing: 1.2,
-            ),
+            title,
+            style: TextStyle(color: textColor, fontSize: 18, fontWeight: FontWeight.bold),
           ),
         ),
         GlassCard(
           child: Column(
-            children: items,
+            children: items.map((item) => item.buildTile(context)).toList(),
           ),
         ),
         const SizedBox(height: 24),
@@ -237,20 +323,20 @@ class _DetailSection extends StatelessWidget {
   }
 }
 
-class _DetailItem extends StatelessWidget {
+class _DetailItem {
   final String label;
   final String value;
   final IconData icon;
   final VoidCallback? onCopy;
-  const _DetailItem(this.label, this.value, this.icon, {this.onCopy});
 
-  @override
-  Widget build(BuildContext context) {
+  _DetailItem(this.label, this.value, this.icon, {this.onCopy});
+
+  Widget buildTile(BuildContext context) {
     final theme = Theme.of(context);
     final textColor = theme.textTheme.titleLarge?.color ?? Colors.black87;
 
     return ListTile(
-      leading: Icon(icon, color: textColor.withValues(alpha: 0.2), size: 20),
+      leading: Icon(icon, color: textColor.withValues(alpha: 0.3), size: 20),
       title: Text(label, style: TextStyle(color: textColor.withValues(alpha: 0.4), fontSize: 11)),
       subtitle: Text(value.isEmpty ? '-' : value, style: TextStyle(color: textColor, fontSize: 15, fontWeight: FontWeight.w500)),
       trailing: onCopy != null 
@@ -271,7 +357,7 @@ class _ActionTile extends StatelessWidget {
     final theme = Theme.of(context);
     final textColor = theme.textTheme.titleLarge?.color ?? Colors.black87;
 
-    return GestureDetector(
+    return ScaleOnPress(
       onTap: onTap,
       child: GlassCard(
         child: Padding(
